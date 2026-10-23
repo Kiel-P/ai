@@ -7,23 +7,12 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; height: 100dvh; overflow: hidden; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #181825;
-      color: #cdd6f4;
-      display: flex;
-      flex-direction: column;
-      padding: 12px;
-    }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #181825; color: #cdd6f4; display: flex; flex-direction: column; padding: 12px; }
     .header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; background: #1e1e2e; padding: 10px; border-radius: 8px; border: 1px solid #45475a; }
     .mode-select { display: flex; gap: 15px; font-size: 13px; align-items: center; }
     .mode-select label { cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .model-box { display: flex; gap: 8px; align-items: center; }
-    select, input[type="text"].model-input {
-      flex: 1; padding: 8px 12px; border-radius: 6px;
-      border: 1px solid #45475a; background: #181825;
-      color: #cdd6f4; outline: none; font-size: 14px;
-    }
+    select, input[type="text"].model-input { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #45475a; background: #181825; color: #cdd6f4; outline: none; font-size: 14px; }
     #chat-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-right: 4px; }
     .msg { padding: 10px 14px; border-radius: 8px; max-width: 85%; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
     .user { background: #89b4fa; color: #11111b; align-self: flex-end; }
@@ -38,28 +27,23 @@
 
   <div class="header">
     <div class="mode-select">
-      <span><strong>Pilih Mode:</strong></span>
-      <label><input type="radio" name="mode" value="auto" checked onclick="switchMode()"> Otomatis (Scan)</label>
-      <label><input type="radio" name="mode" value="manual" onclick="switchMode()"> Manual (Ketik)</label>
+      <span><strong>Mode:</strong></span>
+      <label><input type="radio" name="mode" value="auto" checked onclick="switchMode()"> Scan</label>
+      <label><input type="radio" name="mode" value="manual" onclick="switchMode()"> Manual</label>
     </div>
 
     <div class="model-box">
-      <!-- Kotak 1: Dropdown Scan Otomatis -->
       <select id="modelSelect"></select>
-      
-      <!-- Kotak 2: Input Manual -->
-      <input type="text" id="customModel" class="model-input" placeholder="Ketik nama model (misal: gpt-4o)" style="display:none;">
-
+      <input type="text" id="customModel" class="model-input" placeholder="Ketik nama model..." style="display:none;">
       <button id="scanBtn" class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="loadModels()">Scan</button>
     </div>
-
     <div id="statusText" class="status">Memuat daftar model...</div>
   </div>
 
   <div id="chat-container"></div>
 
   <div class="input-box">
-    <textarea id="userInput" rows="1" placeholder="Ketik pesan atau kode di sini..." oninput="autoResize(this)"></textarea>
+    <textarea id="userInput" rows="1" placeholder="Ketik pesan di sini..." oninput="autoResize(this)"></textarea>
     <button class="btn" onclick="send()">Kirim</button>
   </div>
 
@@ -67,7 +51,6 @@
     const BASE_URL = 'https://bansos.adiosverm.eu.cc/v1';
     const API_KEY = 'sk-e485d5155bd2d3f1-l2tmyw-ad797790';
     const CORS_PROXY = 'https://corsproxy.io/?';
-
     let history = [];
 
     function autoResize(textarea) {
@@ -77,71 +60,41 @@
 
     function switchMode() {
       const mode = document.querySelector('input[name="mode"]:checked').value;
-      const select = document.getElementById('modelSelect');
-      const input = document.getElementById('customModel');
-      const scanBtn = document.getElementById('scanBtn');
-      const status = document.getElementById('statusText');
-
-      if (mode === 'auto') {
-        select.style.display = 'block';
-        input.style.display = 'none';
-        scanBtn.style.display = 'block';
-        status.innerText = 'Mode Otomatis aktif. Tekan tombol Scan untuk mencoba mengambil model.';
-      } else {
-        select.style.display = 'none';
-        input.style.display = 'block';
-        scanBtn.style.display = 'none';
-        status.innerText = 'Mode Manual aktif. Ketik nama model aktif dari monitor.adiosverm.eu.cc.';
-      }
+      document.getElementById('modelSelect').style.display = mode === 'auto' ? 'block' : 'none';
+      document.getElementById('scanBtn').style.display = mode === 'auto' ? 'block' : 'none';
+      document.getElementById('customModel').style.display = mode === 'manual' ? 'block' : 'none';
     }
 
     async function loadModels() {
       const select = document.getElementById('modelSelect');
       const status = document.getElementById('statusText');
-      status.innerText = 'Scanning model dari server...';
+      status.innerText = 'Scanning model...';
       select.innerHTML = '';
 
       try {
+        // Ambil daftar model lewat proxy (karena GET sering diblokir CORS)
         const targetUrl = encodeURIComponent(`${BASE_URL}/models`);
         const res = await fetch(`${CORS_PROXY}${targetUrl}`, {
           headers: { 'Authorization': `Bearer ${API_KEY}` }
         });
-
-        if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-
         const data = await res.json();
 
         if (data.data && data.data.length > 0) {
           data.data.forEach(m => {
             const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = m.id;
+            opt.value = m.id; opt.textContent = m.id;
             select.appendChild(opt);
           });
-          status.innerText = `Berhasil scan ${data.data.length} model aktif.`;
-        } else {
-          throw new Error('Daftar model kosong');
-        }
+          status.innerText = `Scan berhasil: ${data.data.length} model.`;
+        } else throw new Error('Kosong');
       } catch (err) {
-        status.innerText = 'Scan terblokir server. Menggunakan preset atau pindah ke mode Manual:';
-        const presets = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet', 'gemini-1.5-pro'];
-        select.innerHTML = '';
-        presets.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m;
-          opt.textContent = m;
-          select.appendChild(opt);
-        });
+        status.innerText = 'Scan terblokir. Gunakan mode manual.';
       }
     }
 
     function getSelectedModel() {
       const mode = document.querySelector('input[name="mode"]:checked').value;
-      if (mode === 'auto') {
-        return document.getElementById('modelSelect').value;
-      } else {
-        return document.getElementById('customModel').value.trim();
-      }
+      return mode === 'auto' ? document.getElementById('modelSelect').value : document.getElementById('customModel').value.trim();
     }
 
     async function send() {
@@ -149,20 +102,15 @@
       const text = input.value.trim();
       const selectedModel = getSelectedModel();
 
-      if (!text) return;
-      if (!selectedModel) {
-        alert('Nama model belum diisi/dipilih!');
-        return;
-      }
+      if (!text || !selectedModel) return;
 
       addMessage(text, 'user');
       history.push({ role: 'user', content: text });
-      input.value = '';
-      input.style.height = 'auto';
+      input.value = ''; input.style.height = 'auto';
 
       try {
-        const targetUrl = encodeURIComponent(`${BASE_URL}/chat/completions`);
-        const res = await fetch(`${CORS_PROXY}${targetUrl}`, {
+        // PERUBAHAN PENTING: Chat dikirim LANGSUNG ke server asli tanpa corsproxy.io
+        const res = await fetch(`${BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -184,26 +132,22 @@
           const errDetail = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
           addMessage(`Server Error: ${errDetail}`, 'bot');
         } else {
-          addMessage(`Error: ${JSON.stringify(data)}`, 'bot');
+          addMessage(`Error tidak dikenal: ${JSON.stringify(data)}`, 'bot');
         }
       } catch (err) {
-        addMessage('Error: Gagal terhubung ke server AI.', 'bot');
+        // Jika masuk ke sini, artinya server menolak koneksi langsung dari browser (Strict CORS)
+        addMessage('CORS Error: API ini dikunci oleh penyedia hanya untuk aplikasi Desktop/Python/Backend, tidak bisa diakses langsung via web browser.', 'bot');
       }
     }
 
     function addMessage(text, sender) {
       const container = document.getElementById('chat-container');
       const div = document.createElement('div');
-      div.className = `msg ${sender}`;
-      div.innerText = text;
-      container.appendChild(div);
-      container.scrollTop = container.scrollHeight;
+      div.className = `msg ${sender}`; div.innerText = text;
+      container.appendChild(div); container.scrollTop = container.scrollHeight;
     }
 
-    window.onload = () => {
-      switchMode();
-      loadModels();
-    };
+    window.onload = () => { switchMode(); loadModels(); };
   </script>
 </body>
 </html>
