@@ -7,48 +7,61 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #1e1e2e; color: #cdd6f4; display: flex; flex-direction: column; height: 100vh; padding: 15px; }
-    .header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    select { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #45475a; background: #181825; color: #cdd6f4; outline: none; font-size: 14px; }
+    .header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .model-box { display: flex; gap: 8px; align-items: center; }
+    select, input[type="text"] { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #45475a; background: #181825; color: #cdd6f4; outline: none; font-size: 14px; }
     #chat-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; padding-right: 5px; }
     .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; line-height: 1.4; white-space: pre-wrap; }
     .user { background: #89b4fa; color: #11111b; align-self: flex-end; }
     .bot { background: #313244; align-self: flex-start; border: 1px solid #45475a; }
     .input-box { display: flex; gap: 10px; }
-    input { flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #45475a; background: #181825; color: #cdd6f4; outline: none; }
-    button { padding: 12px 20px; background: #89b4fa; color: #11111b; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn { padding: 10px 16px; background: #89b4fa; color: #11111b; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .status { font-size: 12px; color: #a6adc8; }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <label for="modelSelect"><strong>Model:</strong></label>
-    <select id="modelSelect">
-      <option value="">Memuat daftar model...</option>
-    </select>
+    <div class="model-box">
+      <label for="modelSelect"><strong>Model:</strong></label>
+      <select id="modelSelect"></select>
+      <button class="btn" style="padding: 8px 12px; font-size: 12px;" onclick="loadModels()">Scan Ulang</button>
+    </div>
+    <div id="statusText" class="status">Memuat model...</div>
   </div>
 
   <div id="chat-container"></div>
 
   <div class="input-box">
     <input type="text" id="userInput" placeholder="Ketik pesan..." onkeydown="if(event.key==='Enter') send()">
-    <button onclick="send()">Kirim</button>
+    <button class="btn" onclick="send()">Kirim</button>
   </div>
 
   <script>
     const BASE_URL = 'https://bansos.adiosverm.eu.cc/v1';
     const API_KEY = 'sk-e485d5155bd2d3f1-l2tmyw-ad797790';
+    // Proxy untuk bypass aturan CORS browser
+    const CORS_PROXY = 'https://corsproxy.io/?';
+
     let history = [];
 
-    // Mengambil daftar model aktif secara otomatis
     async function loadModels() {
       const select = document.getElementById('modelSelect');
+      const status = document.getElementById('statusText');
+      status.innerText = 'Mengambil daftar model via Proxy...';
+      select.innerHTML = '';
+
       try {
-        const res = await fetch(`${BASE_URL}/models`, {
+        // Menggunakan CORS Proxy agar permintaan tidak diblokir browser
+        const targetUrl = encodeURIComponent(`${BASE_URL}/models`);
+        const res = await fetch(`${CORS_PROXY}${targetUrl}`, {
           headers: { 'Authorization': `Bearer ${API_KEY}` }
         });
+
+        if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+
         const data = await res.json();
 
-        select.innerHTML = '';
         if (data.data && data.data.length > 0) {
           data.data.forEach(m => {
             const opt = document.createElement('option');
@@ -56,11 +69,21 @@
             opt.textContent = m.id;
             select.appendChild(opt);
           });
+          status.innerText = `Berhasil memuat ${data.data.length} model.`;
         } else {
-          select.innerHTML = '<option value="">Tidak ada model tersedia</option>';
+          throw new Error('Daftar model kosong');
         }
       } catch (err) {
-        select.innerHTML = '<option value="">Gagal mengambil daftar model</option>';
+        status.innerText = 'Scan otomatis gagal/CORS terblokir. Menggunakan model bawaan:';
+        // Fallback jika API /models di-block server: sediakan pilihan manual umum
+        const defaultModels = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet', 'gemini-1.5-pro'];
+        select.innerHTML = '';
+        defaultModels.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          select.appendChild(opt);
+        });
       }
     }
 
@@ -70,18 +93,15 @@
       const text = input.value.trim();
       const selectedModel = select.value;
 
-      if (!text) return;
-      if (!selectedModel) {
-        alert('Model belum siap atau tidak tersedia!');
-        return;
-      }
+      if (!text || !selectedModel) return;
 
       addMessage(text, 'user');
       history.push({ role: 'user', content: text });
       input.value = '';
 
       try {
-        const res = await fetch(`${BASE_URL}/chat/completions`, {
+        const targetUrl = encodeURIComponent(`${BASE_URL}/chat/completions`);
+        const res = await fetch(`${CORS_PROXY}${targetUrl}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -94,12 +114,16 @@
         });
 
         const data = await res.json();
-        const reply = data.choices[0].message.content;
-
-        addMessage(reply, 'bot');
-        history.push({ role: 'assistant', content: reply });
+        
+        if (data.choices && data.choices[0]) {
+          const reply = data.choices[0].message.content;
+          addMessage(reply, 'bot');
+          history.push({ role: 'assistant', content: reply });
+        } else {
+          addMessage('Error: Respon server tidak valid.', 'bot');
+        }
       } catch (err) {
-        addMessage('Error: Gagal dapet respon dari server.', 'bot');
+        addMessage('Error: Gagal terhubung ke server AI.', 'bot');
       }
     }
 
@@ -112,7 +136,6 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    // Jalankan scan model saat halaman di-load
     window.onload = loadModels;
   </script>
 </body>
