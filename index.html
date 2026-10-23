@@ -15,11 +15,13 @@
       flex-direction: column;
       padding: 12px;
     }
-    .header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; background: #1e1e2e; padding: 10px; border-radius: 8px; border: 1px solid #45475a; }
+    .mode-select { display: flex; gap: 15px; font-size: 13px; align-items: center; }
+    .mode-select label { cursor: pointer; display: flex; align-items: center; gap: 4px; }
     .model-box { display: flex; gap: 8px; align-items: center; }
     select, input[type="text"].model-input {
       flex: 1; padding: 8px 12px; border-radius: 6px;
-      border: 1px solid #45475a; background: #1e1e2e;
+      border: 1px solid #45475a; background: #181825;
       color: #cdd6f4; outline: none; font-size: 14px;
     }
     #chat-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-right: 4px; }
@@ -35,13 +37,23 @@
 <body>
 
   <div class="header">
-    <div class="model-box">
-      <label for="modelSelect"><strong>Model:</strong></label>
-      <select id="modelSelect" style="display:none;"></select>
-      <input type="text" id="customModel" class="model-input" placeholder="Ketik nama model (misal: gpt-4o)...">
-      <button class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="loadModels()">Scan</button>
+    <div class="mode-select">
+      <span><strong>Pilih Mode:</strong></span>
+      <label><input type="radio" name="mode" value="auto" checked onclick="switchMode()"> Otomatis (Scan)</label>
+      <label><input type="radio" name="mode" value="manual" onclick="switchMode()"> Manual (Ketik)</label>
     </div>
-    <div id="statusText" class="status">Isi nama model manual atau tekan Scan.</div>
+
+    <div class="model-box">
+      <!-- Kotak 1: Dropdown Scan Otomatis -->
+      <select id="modelSelect"></select>
+      
+      <!-- Kotak 2: Input Manual -->
+      <input type="text" id="customModel" class="model-input" placeholder="Ketik nama model (misal: gpt-4o)" style="display:none;">
+
+      <button id="scanBtn" class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="loadModels()">Scan</button>
+    </div>
+
+    <div id="statusText" class="status">Memuat daftar model...</div>
   </div>
 
   <div id="chat-container"></div>
@@ -63,12 +75,31 @@
       textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     }
 
+    function switchMode() {
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      const select = document.getElementById('modelSelect');
+      const input = document.getElementById('customModel');
+      const scanBtn = document.getElementById('scanBtn');
+      const status = document.getElementById('statusText');
+
+      if (mode === 'auto') {
+        select.style.display = 'block';
+        input.style.display = 'none';
+        scanBtn.style.display = 'block';
+        status.innerText = 'Mode Otomatis aktif. Tekan tombol Scan untuk mencoba mengambil model.';
+      } else {
+        select.style.display = 'none';
+        input.style.display = 'block';
+        scanBtn.style.display = 'none';
+        status.innerText = 'Mode Manual aktif. Ketik nama model aktif dari monitor.adiosverm.eu.cc.';
+      }
+    }
+
     async function loadModels() {
       const select = document.getElementById('modelSelect');
-      const inputCustom = document.getElementById('customModel');
       const status = document.getElementById('statusText');
-      
-      status.innerText = 'Mengambil daftar model via Proxy...';
+      status.innerText = 'Scanning model dari server...';
+      select.innerHTML = '';
 
       try {
         const targetUrl = encodeURIComponent(`${BASE_URL}/models`);
@@ -81,33 +112,36 @@
         const data = await res.json();
 
         if (data.data && data.data.length > 0) {
-          select.innerHTML = '';
           data.data.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id;
             opt.textContent = m.id;
             select.appendChild(opt);
           });
-          select.style.display = 'block';
-          inputCustom.style.display = 'none';
-          status.innerText = `Berhasil memuat ${data.data.length} model.`;
+          status.innerText = `Berhasil scan ${data.data.length} model aktif.`;
         } else {
           throw new Error('Daftar model kosong');
         }
       } catch (err) {
-        select.style.display = 'none';
-        inputCustom.style.display = 'block';
-        status.innerText = 'Scan terblokir. Silakan ketik nama model aktif dari monitor.adiosverm.eu.cc secara manual di atas.';
+        status.innerText = 'Scan terblokir server. Menggunakan preset atau pindah ke mode Manual:';
+        const presets = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet', 'gemini-1.5-pro'];
+        select.innerHTML = '';
+        presets.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          select.appendChild(opt);
+        });
       }
     }
 
     function getSelectedModel() {
-      const select = document.getElementById('modelSelect');
-      const inputCustom = document.getElementById('customModel');
-      if (select.style.display !== 'none' && select.value) {
-        return select.value;
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      if (mode === 'auto') {
+        return document.getElementById('modelSelect').value;
+      } else {
+        return document.getElementById('customModel').value.trim();
       }
-      return inputCustom.value.trim();
     }
 
     async function send() {
@@ -117,7 +151,7 @@
 
       if (!text) return;
       if (!selectedModel) {
-        alert('Isi atau pilih nama model terlebih dahulu!');
+        alert('Nama model belum diisi/dipilih!');
         return;
       }
 
@@ -147,7 +181,6 @@
           addMessage(reply, 'bot');
           history.push({ role: 'assistant', content: reply });
         } else if (data.error) {
-          // Tampilkan pesan error detail dari server
           const errDetail = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
           addMessage(`Server Error: ${errDetail}`, 'bot');
         } else {
@@ -167,7 +200,10 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    window.onload = loadModels;
+    window.onload = () => {
+      switchMode();
+      loadModels();
+    };
   </script>
 </body>
 </html>
