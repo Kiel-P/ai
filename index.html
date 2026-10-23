@@ -17,7 +17,11 @@
     }
     .header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
     .model-box { display: flex; gap: 8px; align-items: center; }
-    select { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #45475a; background: #1e1e2e; color: #cdd6f4; outline: none; font-size: 14px; }
+    select, input[type="text"].model-input {
+      flex: 1; padding: 8px 12px; border-radius: 6px;
+      border: 1px solid #45475a; background: #1e1e2e;
+      color: #cdd6f4; outline: none; font-size: 14px;
+    }
     #chat-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-right: 4px; }
     .msg { padding: 10px 14px; border-radius: 8px; max-width: 85%; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
     .user { background: #89b4fa; color: #11111b; align-self: flex-end; }
@@ -33,10 +37,11 @@
   <div class="header">
     <div class="model-box">
       <label for="modelSelect"><strong>Model:</strong></label>
-      <select id="modelSelect"></select>
-      <button class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="loadModels()">Scan Ulang</button>
+      <select id="modelSelect" style="display:none;"></select>
+      <input type="text" id="customModel" class="model-input" placeholder="Ketik nama model (misal: gpt-4o)...">
+      <button class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="loadModels()">Scan</button>
     </div>
-    <div id="statusText" class="status">Memuat model...</div>
+    <div id="statusText" class="status">Isi nama model manual atau tekan Scan.</div>
   </div>
 
   <div id="chat-container"></div>
@@ -60,9 +65,10 @@
 
     async function loadModels() {
       const select = document.getElementById('modelSelect');
+      const inputCustom = document.getElementById('customModel');
       const status = document.getElementById('statusText');
+      
       status.innerText = 'Mengambil daftar model via Proxy...';
-      select.innerHTML = '';
 
       try {
         const targetUrl = encodeURIComponent(`${BASE_URL}/models`);
@@ -75,36 +81,45 @@
         const data = await res.json();
 
         if (data.data && data.data.length > 0) {
+          select.innerHTML = '';
           data.data.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id;
             opt.textContent = m.id;
             select.appendChild(opt);
           });
+          select.style.display = 'block';
+          inputCustom.style.display = 'none';
           status.innerText = `Berhasil memuat ${data.data.length} model.`;
         } else {
           throw new Error('Daftar model kosong');
         }
       } catch (err) {
-        status.innerText = 'Scan otomatis gagal/CORS terblokir. Menggunakan model bawaan:';
-        const defaultModels = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet', 'gemini-1.5-pro'];
-        select.innerHTML = '';
-        defaultModels.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m;
-          opt.textContent = m;
-          select.appendChild(opt);
-        });
+        select.style.display = 'none';
+        inputCustom.style.display = 'block';
+        status.innerText = 'Scan terblokir. Silakan ketik nama model aktif dari monitor.adiosverm.eu.cc secara manual di atas.';
       }
+    }
+
+    function getSelectedModel() {
+      const select = document.getElementById('modelSelect');
+      const inputCustom = document.getElementById('customModel');
+      if (select.style.display !== 'none' && select.value) {
+        return select.value;
+      }
+      return inputCustom.value.trim();
     }
 
     async function send() {
       const input = document.getElementById('userInput');
-      const select = document.getElementById('modelSelect');
       const text = input.value.trim();
-      const selectedModel = select.value;
+      const selectedModel = getSelectedModel();
 
-      if (!text || !selectedModel) return;
+      if (!text) return;
+      if (!selectedModel) {
+        alert('Isi atau pilih nama model terlebih dahulu!');
+        return;
+      }
 
       addMessage(text, 'user');
       history.push({ role: 'user', content: text });
@@ -127,12 +142,16 @@
 
         const data = await res.json();
         
-        if (data.choices && data.choices[0]) {
+        if (data.choices && data.choices[0] && data.choices[0].message) {
           const reply = data.choices[0].message.content;
           addMessage(reply, 'bot');
           history.push({ role: 'assistant', content: reply });
+        } else if (data.error) {
+          // Tampilkan pesan error detail dari server
+          const errDetail = typeof data.error === 'object' ? (data.error.message || JSON.stringify(data.error)) : data.error;
+          addMessage(`Server Error: ${errDetail}`, 'bot');
         } else {
-          addMessage('Error: Respon server tidak valid.', 'bot');
+          addMessage(`Error: ${JSON.stringify(data)}`, 'bot');
         }
       } catch (err) {
         addMessage('Error: Gagal terhubung ke server AI.', 'bot');
