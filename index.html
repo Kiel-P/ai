@@ -2,21 +2,30 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Chat AI</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #1e1e2e; color: #cdd6f4; display: flex; flex-direction: column; height: 100vh; padding: 15px; }
-    .header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    html, body { height: 100%; height: 100dvh; overflow: hidden; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #181825;
+      color: #cdd6f4;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+    }
+    .header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
     .model-box { display: flex; gap: 8px; align-items: center; }
-    select, input[type="text"] { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #45475a; background: #181825; color: #cdd6f4; outline: none; font-size: 14px; }
-    #chat-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; padding-right: 5px; }
-    .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; line-height: 1.4; white-space: pre-wrap; }
+    select { flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid #45475a; background: #1e1e2e; color: #cdd6f4; outline: none; font-size: 14px; }
+    #chat-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; padding-right: 4px; }
+    .msg { padding: 10px 14px; border-radius: 8px; max-width: 85%; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
     .user { background: #89b4fa; color: #11111b; align-self: flex-end; }
     .bot { background: #313244; align-self: flex-start; border: 1px solid #45475a; }
-    .input-box { display: flex; gap: 10px; }
-    .btn { padding: 10px 16px; background: #89b4fa; color: #11111b; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-    .status { font-size: 12px; color: #a6adc8; }
+    .input-box { display: flex; gap: 8px; align-items: flex-end; background: #1e1e2e; padding: 8px; border-radius: 10px; border: 1px solid #45475a; }
+    textarea { flex: 1; padding: 6px; border: none; background: transparent; color: #cdd6f4; outline: none; font-size: 14px; resize: none; max-height: 120px; font-family: inherit; }
+    .btn { padding: 8px 14px; background: #89b4fa; color: #11111b; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+    .status { font-size: 11px; color: #a6adc8; }
   </style>
 </head>
 <body>
@@ -25,7 +34,7 @@
     <div class="model-box">
       <label for="modelSelect"><strong>Model:</strong></label>
       <select id="modelSelect"></select>
-      <button class="btn" style="padding: 8px 12px; font-size: 12px;" onclick="loadModels()">Scan Ulang</button>
+      <button class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="loadModels()">Scan Ulang</button>
     </div>
     <div id="statusText" class="status">Memuat model...</div>
   </div>
@@ -33,17 +42,21 @@
   <div id="chat-container"></div>
 
   <div class="input-box">
-    <input type="text" id="userInput" placeholder="Ketik pesan..." onkeydown="if(event.key==='Enter') send()">
+    <textarea id="userInput" rows="1" placeholder="Ketik pesan atau kode di sini..." oninput="autoResize(this)"></textarea>
     <button class="btn" onclick="send()">Kirim</button>
   </div>
 
   <script>
     const BASE_URL = 'https://bansos.adiosverm.eu.cc/v1';
     const API_KEY = 'sk-e485d5155bd2d3f1-l2tmyw-ad797790';
-    // Proxy untuk bypass aturan CORS browser
     const CORS_PROXY = 'https://corsproxy.io/?';
 
     let history = [];
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }
 
     async function loadModels() {
       const select = document.getElementById('modelSelect');
@@ -52,7 +65,6 @@
       select.innerHTML = '';
 
       try {
-        // Menggunakan CORS Proxy agar permintaan tidak diblokir browser
         const targetUrl = encodeURIComponent(`${BASE_URL}/models`);
         const res = await fetch(`${CORS_PROXY}${targetUrl}`, {
           headers: { 'Authorization': `Bearer ${API_KEY}` }
@@ -75,7 +87,6 @@
         }
       } catch (err) {
         status.innerText = 'Scan otomatis gagal/CORS terblokir. Menggunakan model bawaan:';
-        // Fallback jika API /models di-block server: sediakan pilihan manual umum
         const defaultModels = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet', 'gemini-1.5-pro'];
         select.innerHTML = '';
         defaultModels.forEach(m => {
@@ -98,6 +109,7 @@
       addMessage(text, 'user');
       history.push({ role: 'user', content: text });
       input.value = '';
+      input.style.height = 'auto';
 
       try {
         const targetUrl = encodeURIComponent(`${BASE_URL}/chat/completions`);
